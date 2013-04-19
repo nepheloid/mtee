@@ -10,18 +10,16 @@ DESCRIPTION
 
     This must be run as root.
 
-    The INPUT_DEVICE must be a file in '/etc/input/', such as
+    The INPUT_DEVICE must be a file in the directory '/etc/input/', such as
     '/etc/input/event4'. Do not use the '/etc/input/mouse*' devices.
 
     Use the '--list' and '--detect'' options to help figure out
     which input device to use.
 
-    You may wish to disable the mouse you are using for entropy under X11.
-    This will not disable it under /dev/input, so it will still
-    be a source of entropy. Disabling it under X11 will only stop
-    the X11 cursor from jiggling about.
-
-    First identify which mouse you wish to disable.
+    You may wish to disable the entropy mouse under X11 to prevent the mouse
+    cursor from wiggling around the screen randomly. This will not disable it
+    under /dev/input, so it will still be a source of entropy. First identify
+    which mouse you wish to disable.
         xinput --list
     Next find the ID of the 'Device Enabled' property of the mouse.
         xinput --list-props 16
@@ -32,8 +30,13 @@ DESCRIPTION
     in a portable way under Python. To work around this, you can
     compile the following tiny C program which will print out the
     value of the command constants. This should get around any issues
-    with word size and endianess.
+    with word size and endianess. Save this snippet as "ev-print.c":
 
+    /* Build with
+     *     make ev-print
+     * or
+     *     gcc ev-print.c -o ev-print
+     * */
     #include <stdio.h>
     #include <linux/input.h>
     int main (int argc, char *argv[]) {
@@ -46,11 +49,24 @@ DESCRIPTION
 
 EXAMPLES
 
-    $ sudo ./entropy-source /dev/input/event4 >> entropy-source.bin &
-    [1] 4711
-    $ sudo ./entropy-source /dev/input/event4 | od -x
-    0000000 0bbd b360 4887 5b06 213e 53e3 becc bd08
-    0000020 4552 056f 6698 be45 2e67 f78a 43b1 44ee
+    Most of the operations require root permissions. In these examples
+    the 'sudo' command is used when necessary.
+
+    You can use the '--detect' option to display the name of the
+    next input device you plug into the system. Start the command
+    before you plug in the device. As soon as you plug in the device
+    its name will be printed. Some mice may create more than one device.
+    You will have to try each name to see which one works.
+        $ ./entropy-source --detect
+        /dev/input/event4
+
+    The basic operation is to output 8-bit bytes of entropy from
+    the given input device. In this example the bytes are piped
+    into 'od' to display them in hex. Sudo is used to run the
+    command with root permissions.
+        $ sudo ./entropy-source /dev/input/event4 | od -x
+        0000000 0bbd b360 4887 5b06 213e 53e3 becc bd08
+        0000020 4552 056f 6698 be45 2e67 f78a 43b1 44ee
 
     The following example will show the raw bits, with bias,
     as they are pulled from the input device. This is useful
@@ -60,6 +76,7 @@ EXAMPLES
     100000100110011001000101110001000100100101101011011000110
 
     $ sudo ./entropy-source /dev/input/event4 >> entropy-source.bin &
+    [1] 4711
     $ ./histogram.py entropy-source.bin |
       egrep -v "^\s*#" | awk '{print $2}' |
       graph --auto-abscissa 1.0 -r 0.1 -u 0.1 -h 0.8 -w 0.8
@@ -80,7 +97,7 @@ LICENSE
     This license is approved by the OSI and FSF as GPL-compatible.
         http://opensource.org/licenses/isc-license.txt
 
-    Copyright (c) 2012, Noah Spurrier <noah@noah.org>
+    Copyright (c) 2013, Noah Spurrier <noah@noah.org>
     PERMISSION TO USE, COPY, MODIFY, AND/OR DISTRIBUTE THIS SOFTWARE FOR ANY
     PURPOSE WITH OR WITHOUT FEE IS HEREBY GRANTED, PROVIDED THAT THE ABOVE
     COPYRIGHT NOTICE AND THIS PERMISSION NOTICE APPEAR IN ALL COPIES.
@@ -567,7 +584,12 @@ def main (options, args):
         return 1
 
     if options.detect:
-        print '/dev/input/%s' % detect_hotplug()[0]
+        new_devices = detect_hotplug()
+        if new_devices is None:
+            sys.stderr.write('ERROR: No device found before timeout.\n')
+            return 1
+        for dev_name in sorted(new_devices):
+            print '/dev/input/%s' % dev_name
         return 0
 
     # The following options require args[0] to be defined.
