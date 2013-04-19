@@ -1,0 +1,92 @@
+#!/usr/bin/env python
+
+from scipy import *
+#import scipy.io.array_import
+#from scipy import gplt
+from pylab import plot, show, title, xlabel, ylabel, subplot
+from scipy import fftpack
+import numpy
+
+def plotSpectrum(y,Fs):
+    """
+    Plots a Single-Sided Amplitude Spectrum of y(t)
+    """
+    n = len(y) # length of the signal
+    k = arange(n)
+    T = n/Fs
+    frq = k/T # two sides frequency range
+    frq = frq[range(n/2)] # one side frequency range
+    Y = fft(y)/n # fft computing and normalization
+    Y = Y[range(n/2)]
+    plot(frq,abs(Y),'r') # plotting the spectrum
+    xlabel('Freq (Hz)')
+    ylabel('|Y(freq)|')
+
+#tempdata = scipy.io.array_import.read_array('event-rnd.bin')
+bin_type = numpy.dtype(numpy.int8)
+tempdata = numpy.fromfile('event-rnd3.bin', bin_type )
+Fs = 150.0;  # sampling rate
+Ts = 1.0/Fs; # sampling interval
+t = arange(0,1,Ts) # time vector
+ff = 5;   # frequency of the signal
+y = sin(2*pi*ff*t)
+subplot(2,1,1)
+plot(tempdata)
+xlabel('Time')
+ylabel('Amplitude')
+subplot(2,1,2)
+#plotSpectrum(y,Fs)
+plotSpectrum(tempdata,Fs)
+show()
+
+########Y=fft(tempdata)
+########subplot(2,1,1)
+########plot(tempdata)
+########subplot(2,1,2)
+########plot(Y)
+########show()
+####tempdata = numpy.load('event-rnd.bin')
+####Y=fft(tempdata)
+####gplt.plot(Y.real,Y.imag,'title "Meas" with points')
+####gplt.xtitle('real(FFT)')
+####gplt.ytitle('img(FFT)')
+####gplt.xaxis((-4000,2000))
+####gplt.grid("off")
+####gplt.output('sunspot_FFT.png','png medium transparent picsize 600 400')
+#tempdata = scipy.io.array_import.read_array('sunspots.dat')
+
+#year=tempdata[:,0]
+#wolfer=tempdata[:,1]
+#gplt.plot(year,wolfer,'title "Meas" with linespoints')
+#gplt.xtitle('Year')
+#gplt.ytitle('Wolfer number')
+#gplt.grid("off")
+#gplt.output('sunspot_time.png','png medium transparent picsize 600 400')
+
+#Y=fft(wolfer)
+#gplt.plot(Y.real,Y.imag,'title "Meas" with points')
+#gplt.xtitle('real(FFT)')
+#gplt.ytitle('img(FFT)')
+#gplt.xaxis((-4000,2000))
+#gplt.grid("off")
+#gplt.output('sunspot_FFT.png','png medium transparent picsize 600 400')
+#
+#n=len(Y)
+#power = abs(Y[1:(n/2)])**2
+#nyquist=1./2
+#freq=array(range(n/2))/(n/2.0)*nyquist
+#gplt.plot(freq[1:len(freq)], power,'title "Meas" with linespoints')
+#gplt.xtitle('Frequency [1/year]')
+#gplt.ytitle('|FFT|**2')
+#gplt.xaxis((0,0.20))
+#gplt.grid("off")
+#gplt.output('sunspot_freq.png','png medium transparent picsize 600 400')
+#
+#period=1./freq
+#gplt.plot(period[1:len(period)], power,'title "Meas" with linespoints')
+#gplt.xaxis((0,40))
+#gplt.xtitle('Period [year]')
+#gplt.ytitle('|FFT|**2')
+#gplt.grid("off")
+#gplt.output('sunspot_period.png','png medium transparent picsize 600 400')
+#

@@ -1,0 +1,675 @@
+#!/usr/bin/env python
+# vim:set ft=python fileencoding=utf-8 sr et ts=4 sw=4 : See help 'modeline'
+
+"""
+SYNOPSIS
+
+    entropy-source [-h,--help] [-v,--verbose] [--version] INPUT_DEVICE
+
+DESCRIPTION
+
+    This must be run as root.
+
+    The INPUT_DEVICE must be a file in '/etc/input/', such as
+    '/etc/input/event4'. Do not use the '/etc/input/mouse*' devices.
+
+    Use the '--list' and '--detect'' options to help figure out
+    which input device to use.
+
+    You may wish to disable the mouse you are using for entropy under X11.
+    This will not disable it under /dev/input, so it will still
+    be a source of entropy. Disabling it under X11 will only stop
+    the X11 cursor from jiggling about.
+
+    First identify which mouse you wish to disable.
+        xinput --list
+    Next find the ID of the 'Device Enabled' property of the mouse.
+        xinput --list-props 16
+    Finally, set the 'Device Enabled' property to zero.
+        xinput --set-prop 16 145 0
+
+    FIXME: Some of the ioctl command constants are not generated
+    in a portable way under Python. To work around this, you can
+    compile the following tiny C program which will print out the
+    value of the command constants. This should get around any issues
+    with word size and endianess.
+
+    #include <stdio.h>
+    #include <linux/input.h>
+    int main (int argc, char *argv[]) {
+        printf("EVIOCGNAME(255): %u\n", EVIOCGNAME(255));
+        printf("EVIOCGBIT(0, 255): %u\n", EVIOCGBIT(0, 255));
+        printf("EVIOCGID: %u\n", EVIOCGID);
+        printf("EVIOCGVERSION: %u\n", EVIOCGVERSION);
+    }
+
+
+EXAMPLES
+
+    $ sudo ./entropy-source /dev/input/event4 >> entropy-source.bin &
+    [1] 4711
+    $ sudo ./entropy-source /dev/input/event4 | od -x
+    0000000 0bbd b360 4887 5b06 213e 53e3 becc bd08
+    0000020 4552 056f 6698 be45 2e67 f78a 43b1 44ee
+
+    The following example will show the raw bits, with bias,
+    as they are pulled from the input device. This is useful
+    to see how fast the device is generating bits.
+    $ sudo ./entropy-source --raw /dev/input/event4
+    011000001110010000010001011001100110111011010111101111111
+    100000100110011001000101110001000100100101101011011000110
+
+    $ sudo ./entropy-source /dev/input/event4 >> entropy-source.bin &
+    $ ./histogram.py entropy-source.bin |
+      egrep -v "^\s*#" | awk '{print $2}' |
+      graph --auto-abscissa 1.0 -r 0.1 -u 0.1 -h 0.8 -w 0.8
+      --bitmap-size 1024x768 -F HersheySans -T png | display -
+
+EXIT STATUS
+
+    This exits with status 0 on success and 1 otherwise.
+    This exits with a status greater than 1 if there was an
+    unexpected run-time error.
+
+AUTHOR
+
+    Noah Spurrier <noah@noah.org>
+
+LICENSE
+
+    This license is approved by the OSI and FSF as GPL-compatible.
+        http://opensource.org/licenses/isc-license.txt
+
+    Copyright (c) 2012, Noah Spurrier <noah@noah.org>
+    PERMISSION TO USE, COPY, MODIFY, AND/OR DISTRIBUTE THIS SOFTWARE FOR ANY
+    PURPOSE WITH OR WITHOUT FEE IS HEREBY GRANTED, PROVIDED THAT THE ABOVE
+    COPYRIGHT NOTICE AND THIS PERMISSION NOTICE APPEAR IN ALL COPIES.
+    THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+    WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+    MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+    ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+    WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+    ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+VERSION
+
+    Version 1
+"""
+
+import sys
+import os
+import struct
+import time
+import fcntl
+import time
+import traceback
+import optparse
+import bandwidth
+
+# ioctl constants from from pycopia.OS.Linux.IOCTL by
+# Keith Dart <keith@kdart.com> and from
+# /usr/include/asm-generic/ioctl.h via /usr/include/ioctl.h
+#
+# ioctl command encoding: 32 bits total, command in lower 16 bits,
+# size of the parameter structure in the lower 14 bits of the
+# upper 16 bits.
+# Encoding the size of the parameter structure in the ioctl request
+# is useful for catching programs compiled with old versions
+# and to avoid overwriting user space outside the user buffer area.
+# The highest 2 bits are reserved for indicating the ``access mode''.
+# NOTE: This limits the max parameter size to 16kB -1 !
+#
+# The following is for compatibility across the various Linux
+# platforms.  The i386 ioctl numbering scheme doesn't really enforce
+# a type field.  De facto, however, the top 8 bits of the lower 16
+# bits are indeed used as a type field, so we might just as well make
+# this explicit here.  Please be sure to use the decoding macros
+# below from now on.
+INT = "i"
+INT2 = "ii"
+INT5 = "iiiii"
+SHORT = "h"
+USHORT = "H"
+SHORT4 = "hhhh"
+
+sizeof = struct.calcsize
+
+_IOC_NRBITS = 8
+_IOC_TYPEBITS = 8
+_IOC_SIZEBITS = 14
+_IOC_DIRBITS = 2
+_IOC_NRMASK = ((1 << _IOC_NRBITS) - 1)
+_IOC_TYPEMASK = ((1 << _IOC_TYPEBITS) - 1)
+_IOC_SIZEMASK = ((1 << _IOC_SIZEBITS) - 1)
+_IOC_DIRMASK = ((1 << _IOC_DIRBITS) - 1)
+_IOC_NRSHIFT = 0
+_IOC_TYPESHIFT = (_IOC_NRSHIFT + _IOC_NRBITS)
+_IOC_SIZESHIFT = (_IOC_TYPESHIFT + _IOC_TYPEBITS)
+_IOC_DIRSHIFT = (_IOC_SIZESHIFT + _IOC_SIZEBITS)
+IOCSIZE_MASK = (_IOC_SIZEMASK << _IOC_SIZESHIFT)
+IOCSIZE_SHIFT = (_IOC_SIZESHIFT)
+
+# direction bits
+_IOC_NONE = 0
+_IOC_WRITE = 1
+_IOC_READ = 2
+
+
+def _IOC(dir, type, nr, FMT):
+    return int((((dir) << _IOC_DIRSHIFT) | \
+         ((type) << _IOC_TYPESHIFT) | \
+         ((nr) << _IOC_NRSHIFT) | \
+         ((FMT) << _IOC_SIZESHIFT)) & 0xffffffff)
+
+
+# used to create numbers
+# type is the assigned type from the kernel developers
+# nr is the base ioctl number (defined by driver writer)
+# FMT is a struct module format string.
+def _IO(type, nr): return _IOC(_IOC_NONE, (type), (nr), 0)
+
+
+def _IOR(type, nr, FMT): return _IOC(_IOC_READ, (type), (nr), sizeof(FMT))
+
+
+def _IOW(type, nr, FMT): return _IOC(_IOC_WRITE, (type), (nr), sizeof(FMT))
+
+
+def _IOWR(type, nr, FMT): return (_IOC(_IOC_READ | _IOC_WRITE,
+    (type), (nr), sizeof(FMT)))
+
+
+# used to decode ioctl numbers
+def _IOC_DIR(nr): return (((nr) >> _IOC_DIRSHIFT) & _IOC_DIRMASK)
+
+
+def _IOC_TYPE(nr): return (((nr) >> _IOC_TYPESHIFT) & _IOC_TYPEMASK)
+
+
+def _IOC_NR(nr): return (((nr) >> _IOC_NRSHIFT) & _IOC_NRMASK)
+
+
+def _IOC_SIZE(nr): return (((nr) >> _IOC_SIZESHIFT) & _IOC_SIZEMASK)
+
+
+# taken from /usr/include/linux/input.h
+EVIOCGVERSION = _IOR(69, 0x01, INT)  # get driver version
+EVIOCGID = _IOR(69, 0x02, SHORT4)  # get device ID
+EVIOCGREP = _IOR(69, 0x03, INT2)  # get repeat settings
+EVIOCSREP = _IOW(69, 0x03, INT2)  # set repeat settings
+EVIOCGKEYCODE = _IOR(69, 0x04, INT2)  # get keycode
+EVIOCSKEYCODE = _IOW(69, 0x04, INT2)  # set keycode
+EVIOCGKEY = _IOR(69, 0x05, INT2)  # get key value
+EVIOCGNAME = _IOC(_IOC_READ, 69, 0x06, 255)  # get device name
+EVIOCGPHYS = _IOC(_IOC_READ, 69, 0x07, 255)  # get physical location
+EVIOCGUNIQ = _IOC(_IOC_READ, 69, 0x08, 255)  # get unique identifier
+EVIOCRMFF = _IOW(69, 0x81, INT)  # Erase a force effect
+EVIOCSGAIN = _IOW(69, 0x82, USHORT)  # Set overall gain
+EVIOCSAUTOCENTER = _IOW(69, 0x83, USHORT)  # Enable or disable auto-centering
+EVIOCGEFFECTS = _IOR(69, 0x84, INT)  # number of effects at the same time
+EVIOCGRAB = _IOW(69, 0x90, INT)  # Grab/Release device
+
+
+# these take parameters.
+def EVIOCGBIT(evtype, len=255):
+    # get event bits
+    return _IOC(_IOC_READ, 69, 0x20 + evtype, len)
+
+
+def EVIOCGABS(abs):
+    # get abs value/limits
+    return _IOR(69, 0x40 + abs, INT5)
+
+
+def EVIOCGSW(len):
+    # get all switch states
+    return _IOC(_IOC_READ, 69, 0x1b, len)
+
+
+def EVIOCGLED(len):
+    #  get all LED states
+    return _IOC(_IOC_READ, 69, 0x19, len)
+
+#struct input_event {
+#        struct timeval time; = {long seconds, long microseconds}
+#        unsigned short type;
+#        unsigned short code;
+#        unsigned int value;
+#};
+
+EVFMT = "llHHi"
+EVsize = struct.calcsize(EVFMT)
+
+EV_SYN = 0x00
+EV_KEY = 0x01
+EV_REL = 0x02
+EV_ABS = 0x03
+EV_MSC = 0x04
+EV_SW = 0x05
+EV_LED = 0x11
+EV_SND = 0x12
+EV_REP = 0x14
+EV_FF = 0x15
+EV_PWR = 0x16
+EV_FF_STATUS = 0x17
+EV_MAX = 0x1f
+EV_NAMES = {
+    EV_SYN: "Sync",
+    EV_KEY: "Keys or Buttons",
+    EV_REL: "Relative Axes",
+    EV_ABS: "Absolute Axes",
+    EV_MSC: "Miscellaneous",
+    EV_SW: "Switches",
+    EV_LED: "Leds",
+    EV_SND: "Sound",
+    EV_REP: "Repeat",
+    EV_FF: "Force Feedback",
+    EV_PWR: "Power Management",
+    EV_FF_STATUS: "Force Feedback Status",
+}
+
+
+class Event(object):
+
+    """This represents a kernel input event from a device in /dev/input/.
+    This stores the event time, type, code, and value.
+    See also: /sys/class/input/event*
+    """
+
+    def __init__(self):
+
+        self.tv_sec = None
+        self.tv_usec = None
+        self.evtype = None
+        self.code = None
+        self.value = None
+        self.tt = None
+
+    def __str__(self):
+
+        return ("tv_sec: %d, tv_usec: %6d, evtype: 0x%x," +
+                "code: 0x%x, value: 0x%x" % (self.tv_sec, self.tv_usec,
+                self.evtype, self.code, self.value))
+
+    def encode(self):
+
+        #tv_sec, tv_usec = divmod(self.tt, 1.0)
+        return struct.pack(EVFMT, self.tv_sec, self.tv_usec, self.evtype, self.code, self.value)
+
+    def decode(self, bev):
+
+        self.tv_sec, self.tv_usec, self.evtype, self.code, self.value = struct.unpack(EVFMT, bev)
+        self.tt =  self.tv_usec/1000000.0 + self.tv_sec
+
+
+class EventDevice(object):
+
+    def __init__(self, filename):
+
+        self.filename = filename
+        self.name = None
+        self.driver_version = None
+        self.idbus = None
+        self.idvendor = None
+        self.idproduct = None
+        self.idversion = None
+        self.caps = None
+        self._eventq = []
+        self._fd = os.open(self.filename, os.O_RDONLY)
+
+        # The following try/except wrappers are a hack
+        # to handle the following error:
+        #     IOError: [Errno 22] Invalid argument
+        # The way the ioctl constants are defined is not very portable.
+        # For example, on some systems the EVIOCGNAME is defined incorrectly.
+        # I need to fix how ioctl constants are defined. The constant
+        # 1090536710 is one that "just works" on PowerPC where using
+        # EVIOCGNAME fails. It's probably a big-endian vs.
+        # little-endian thing. PowerPC is big endian.
+
+        # device name
+        try:
+            name = fcntl.ioctl(self._fd, EVIOCGNAME, chr(0) * 256)
+        except (IOError):
+            name = fcntl.ioctl(self._fd, 1090471174, chr(0) * 256)
+        self.name = name.strip(chr(0)).strip()
+        # driver version
+        try:
+            ver = fcntl.ioctl(self._fd, EVIOCGVERSION, '\x00\x00\x00\x00')
+        except (IOError):
+            ver = fcntl.ioctl(self._fd, 1074021633, '\x00\x00\x00\x00')
+        self.driver_version = struct.unpack(INT, ver)[0]
+        # device ID info
+        try:
+            devid = fcntl.ioctl(self._fd, EVIOCGID, '\x00\x00\x00\x00\x00\x00\x00\x00')
+        except (IOError):
+            devid = fcntl.ioctl(self._fd, 1074283778, '\x00\x00\x00\x00\x00\x00\x00\x00')
+        self.idbus, self.idvendor, self.idproduct, self.idversion = struct.unpack(SHORT4, devid)
+        # capabilities
+        try:
+            caps = fcntl.ioctl(self._fd, EVIOCGBIT(0), '\x00\x00\x00\x00')
+        except (IOError):
+            caps = fcntl.ioctl(self._fd, 1090471200, '\x00\x00\x00\x00')
+        self.caps = struct.unpack(INT, caps)[0]
+
+    def __del__ (self):
+
+        if hasattr(self, '_fd') and self._fd is not None:
+            os.close(self._fd)
+
+    def __str__(self):
+
+        caps_names = []
+        for (evtype, ev_name) in EV_NAMES.items():
+            if self.has_feature(evtype):
+                caps_names.append(ev_name)
+        caps_names_str = ", ".join(caps_names)
+        return "%s : name='%s', driver_version=0x%x, bus=0x%x, vendor=0x%04x, product=0x%04x, version=0x%x, caps-bits=0x%02x, caps-names='%s'" % \
+            (self.filename, self.name, self.driver_version, self.idbus, self.idvendor, self.idproduct, self.idversion, self.caps, caps_names_str)
+
+    def _fill(self):
+
+        global EVsize
+        try:
+            raw = os.read(self._fd, EVsize * 32)
+#            raw = os.read(self._fd, EVsize)
+        except EOFError:
+            self.close()
+        else:
+            if raw:
+                for i in range(len(raw)/EVsize):
+                    ev = Event()
+                    ev.decode(raw[i*EVsize:(i+1)*EVsize])
+                    self._eventq.append(ev)
+
+    def read(self):
+
+        if not self._eventq:
+            self._fill()
+        if len(self._eventq) < 1:
+            print "read nothing"
+            return None
+        return self._eventq.pop()
+
+    def has_feature(self, evtype):
+
+        return self.caps >> evtype & 1
+
+
+def mouse_events (input_device):
+
+    ed = EventDevice(input_device)
+    while ed:
+        ev = ed.read()
+        if ev.evtype == EV_REL:
+            yield ev
+
+
+def mouse_motion (input_device):
+
+    """This generates the relative motion of the given input device."""
+
+    ed = EventDevice(input_device)
+    while ed:
+        ev = ed.read()
+        if ev.evtype == EV_REL:
+            yield ev.value
+
+def mouse_timing_delta (input_device):
+
+    """This generates the timing of each mouse event."""
+
+    ed = mouse_events(input_device)
+    t1 = ed.next().tt
+    while ed:
+        tt =  ed.tv_usec/1000000.0 + ed.tv_sec
+
+def entropy_bit(input_device):
+
+    """This takes the relative motion of the given input device
+    and generates raw bits based on whether the motion is
+    odd or even. See mouse_motion(). """
+
+    motion = mouse_motion(input_device)
+    while motion:
+        bit = motion.next() % 2
+        yield bit
+
+
+def entropy_bit_unbias_vonneumann(input_device):
+
+    """This takes the raw bits from entropy_bit() and
+    removes simple bias using Von Neumann's method.
+    This is the preferred alternative to using
+    entropy_bit_unbias_xor(). """
+
+    bits = entropy_bit(input_device)
+    while bits:
+        bit1 = bits.next()
+        bit2 = bits.next()
+        if bit1 == bit2:
+            continue
+        else:
+            yield bit1
+
+
+def entropy_bit_unbias_xor(input_device):
+
+    """This takes the raw bits from entropy_bit() and
+    removes simple bias using xor. This is an alternative
+    debiasing method to entropy_bit_unbias_vonneumann(). """
+
+    motion = entropy_bit(input_device)
+    while motion:
+        bit1 = motion.next()
+        bit2 = motion.next()
+        yield bit1^bit2
+
+
+def entropy_bit_unbias_vonneumann2(input_device):
+
+    """This is a second order version of entropy_bit_unbias_vonneumann().
+    This basically applies the Von Neumann method twice. """
+
+    bits = entropy_bit_unbias_vonneumann(input_device)
+    while bits:
+        bit1 = bits.next()
+        bit2 = bits.next()
+        if bit1 == bit2:
+            continue
+        else:
+            yield bit1
+
+
+def entropy_bytes (input_device):
+
+    """This is a generator for an entropy source of 8-bit bytes with
+    Von Neumann bias filtering. This calls entropy_bit_unbias_vonneumann
+    8 times to generate a byte. """
+
+    bit_source = entropy_bit_unbias_vonneumann(input_device)
+    #bit_source = entropy_bit_unbias_xor(input_device)
+    while bit_source:
+        byte = 0x00
+        for nn in range(8):
+            byte = byte<<1
+            bit = bit_source.next()
+            byte = byte|bit
+        yield byte
+
+def byte_generator (bit_source):
+
+    while bit_source:
+        byte = 0x00
+        for nn in range(8):
+            byte = byte<<1
+            bit = bit_source.next()
+            byte = byte|bit
+        yield byte
+
+
+def list_devices(evtype=None):
+
+    """This returns a list all input event devices with the given evtype. By
+    default (evtyype=None) all input devices are listed. Set evtype to 'EV_REL'
+    to list mouse devices. """
+
+    devices = []
+    for nn in range(0, 100):
+        filename = "/dev/input/event%d" % nn
+        if os.path.exists(filename):
+            ed = EventDevice(filename)
+            if evtype is None or ed.has_feature(evtype):
+                devices.append(ed)
+        else:
+            break
+    return devices
+
+
+def detect_hotplug(dev_path='/dev/input', timeout=30, idle_time=0.250):
+
+    """This waits and returns a list of new devices created
+    under /dev/input/. Only device files named 'event*' are returned.
+    If no device is created before the timeout then None is returned.
+    This may return an empty list if something changed under /dev/input, but
+    an 'event*' device file was not found.
+    """
+
+    before_timestamp = os.stat(dev_path).st_mtime
+    timeout_mark = time.time() + timeout
+    before_list=os.listdir(dev_path)
+    while True:
+        time.sleep (idle_time)
+        after_timestamp = os.stat(dev_path).st_mtime
+        if after_timestamp != before_timestamp:
+            break
+        if time.time() > timeout_mark:
+            return None
+    after_list=os.listdir(dev_path)
+    new_files = [ii for ii in after_list if ii not in before_list and ii[0:5]=='event' ]
+    return new_files
+
+def xor_strings (str_a, str_b):
+    return ''.join([chr(ord(aa) ^ ord(bb)) for aa,bb in zip(str_a,str_b)])
+
+
+def main (options, args):
+
+    try:
+        if options.list:
+            for dev in list_devices(EV_REL):
+                print(dev)
+            return 0
+    except Exception, ee:
+        sys.stderr.write('ERROR: Read permission denied.\n')
+        sys.stderr.write('Perhaps you forgot to use "sudo".\n')
+        return 1
+
+    if options.detect:
+        print '/dev/input/%s' % detect_hotplug()[0]
+        return 0
+
+    # The following options require args[0] to be defined.
+
+    input_device = args[0]
+    if not os.access(input_device, os.R_OK):
+        sys.stderr.write('ERROR: Read permission denied: %s\n' % input_device)
+        sys.stderr.write('Perhaps you forgot to use "sudo".\n')
+        return 1
+
+    if options.raw:
+        # Remember, this is BIASED, so it is expected to give
+        # more of one value of bit than another.
+        entropy_source = entropy_bit(input_device)
+        for bit in entropy_source:
+            sys.stdout.write('%d'%bit)
+            sys.stdout.flush()
+
+    if options.rawvn:
+        entropy_source = entropy_bit_unbias_vonneumann(input_device)
+        for bit in entropy_source:
+            sys.stdout.write('%d'%bit)
+            sys.stdout.flush()
+
+    if options.rawvn2:
+        entropy_source = entropy_bit_unbias_vonneumann2(input_device)
+        for bit in entropy_source:
+            sys.stdout.write('%d'%bit)
+            sys.stdout.flush()
+
+    if options.rawxor:
+        entropy_source = entropy_bit_unbias_xor(input_device)
+        for bit in entropy_source:
+            sys.stdout.write('%d'%bit)
+            sys.stdout.flush()
+
+    if options.events:
+        event_source = mouse_events(input_device)
+        for ev in event_source:
+            print str(ev)
+
+    if options.bytes:
+        bw = bandwidth.bandwidth()
+	last_bandwidth_report = time.time()
+        entropy_source_bits = entropy_bit_unbias_vonneumann(input_device)
+        entropy_source = byte_generator(entropy_source_bits)
+        for byte in entropy_source:
+            sys.stdout.write(chr(byte))
+            sys.stdout.flush()
+            bw.update(1)
+            if time.time() - last_bandwidth_report > 10:
+                last_bandwidth_report = time.time()
+                sys.stderr.write('1 minute bandwidth: %f bytes per second\n' % bw.bandwidth_covering(60.0))
+                sys.stderr.flush()
+
+if __name__ == "__main__":
+    try:
+        start_time = time.time()
+        parser = optparse.OptionParser(
+                formatter=optparse.TitledHelpFormatter(),
+                usage=globals()['__doc__'],
+                version='1')
+        parser.add_option('-v', '--verbose', action='store_true',
+                default=False, help='verbose output')
+        parser.add_option('--bytes', action='store_true',
+                default=True, help='dump binary stream (default)')
+        parser.add_option('--hex', action='store_true',
+                default=False, help='dump ASCII hex stream')
+        parser.add_option('--raw', action='store_true',
+                default=False, help='dump raw bits with bias')
+        parser.add_option('--rawvn', action='store_true',
+                default=False, help='dump raw bits with von Neumann debiasing')
+        parser.add_option('--rawvn2', action='store_true',
+                default=False, help='dump raw bits with 2-pass von Neumann debiasing')
+        parser.add_option('--rawxor', action='store_true',
+                default=False, help='dump raw bits with xor debiasing')
+        parser.add_option('--events', action='store_true',
+                default=False, help='dump raw mouse events')
+        parser.add_option('--list', action='store_true',
+                default=False, help='list input devices')
+        parser.add_option('--detect', action='store_true',
+                default=False, help='detect when input device is newly plugged.')
+        (options, args) = parser.parse_args()
+        if not options.list and not options.detect and len(args) < 1:
+            msg = """Missing input device argument. The mouse device is
+usually something like '/dev/input/event3' or '/dev/input/event4'."""
+            parser.error(msg)
+        if options.verbose: print(time.asctime())
+        exit_code = main(options, args)
+        if exit_code is None:
+            exit_code = 0
+        if options.verbose:
+            print (time.asctime())
+            print ('TOTAL TIME IN MINUTES: %f'%((time.time()-start_time)/60.0))
+        sys.exit(exit_code)
+    except KeyboardInterrupt as e: # The user pressed Ctrl-C.
+        sys.exit(0)
+    except SystemExit as e: # The script called sys.exit() somewhere.
+        raise e
+    except Exception as e:
+        print ('ERROR: Unexpected Exception')
+        print (str(e))
+        traceback.print_exc()
+        os._exit(2)
+
