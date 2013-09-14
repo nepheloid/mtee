@@ -174,40 +174,48 @@ _IOC_READ = 2
 
 
 def _IOC(dir, type, nr, FMT):
-    return int((((dir) << _IOC_DIRSHIFT) | \
-         ((type) << _IOC_TYPESHIFT) | \
-         ((nr) << _IOC_NRSHIFT) | \
-         ((FMT) << _IOC_SIZESHIFT)) & 0xffffffff)
+    return int((((dir) << _IOC_DIRSHIFT) |
+               ((type) << _IOC_TYPESHIFT) |
+               ((nr) << _IOC_NRSHIFT) |
+               ((FMT) << _IOC_SIZESHIFT)) & 0xffffffff)
 
 
 # used to create numbers
 # type is the assigned type from the kernel developers
 # nr is the base ioctl number (defined by driver writer)
 # FMT is a struct module format string.
-def _IO(type, nr): return _IOC(_IOC_NONE, (type), (nr), 0)
+def _IO(type, nr):
+    return _IOC(_IOC_NONE, (type), (nr), 0)
 
 
-def _IOR(type, nr, FMT): return _IOC(_IOC_READ, (type), (nr), sizeof(FMT))
+def _IOR(type, nr, FMT):
+    return _IOC(_IOC_READ, (type), (nr), sizeof(FMT))
 
 
-def _IOW(type, nr, FMT): return _IOC(_IOC_WRITE, (type), (nr), sizeof(FMT))
+def _IOW(type, nr, FMT):
+    return _IOC(_IOC_WRITE, (type), (nr), sizeof(FMT))
 
 
-def _IOWR(type, nr, FMT): return (_IOC(_IOC_READ | _IOC_WRITE,
-    (type), (nr), sizeof(FMT)))
+def _IOWR(type, nr, FMT):
+    return (_IOC(_IOC_READ | _IOC_WRITE,
+            (type), (nr), sizeof(FMT)))
 
 
 # used to decode ioctl numbers
-def _IOC_DIR(nr): return (((nr) >> _IOC_DIRSHIFT) & _IOC_DIRMASK)
+def _IOC_DIR(nr):
+    return (((nr) >> _IOC_DIRSHIFT) & _IOC_DIRMASK)
 
 
-def _IOC_TYPE(nr): return (((nr) >> _IOC_TYPESHIFT) & _IOC_TYPEMASK)
+def _IOC_TYPE(nr):
+    return (((nr) >> _IOC_TYPESHIFT) & _IOC_TYPEMASK)
 
 
-def _IOC_NR(nr): return (((nr) >> _IOC_NRSHIFT) & _IOC_NRMASK)
+def _IOC_NR(nr):
+    return (((nr) >> _IOC_NRSHIFT) & _IOC_NRMASK)
 
 
-def _IOC_SIZE(nr): return (((nr) >> _IOC_SIZESHIFT) & _IOC_SIZEMASK)
+def _IOC_SIZE(nr):
+    return (((nr) >> _IOC_SIZESHIFT) & _IOC_SIZEMASK)
 
 
 # taken from /usr/include/linux/input.h
@@ -306,18 +314,21 @@ class Event(object):
     def __str__(self):
 
         return ("tv_sec: %d, tv_usec: %6d, evtype: 0x%x," +
-                "code: 0x%x, value: 0x%x" % (self.tv_sec, self.tv_usec,
-                self.evtype, self.code, self.value))
+                "code: 0x%x, value: 0x%x" %
+                (self.tv_sec, self.tv_usec, self.evtype,
+                    self.code, self.value))
 
     def encode(self):
 
         #tv_sec, tv_usec = divmod(self.tt, 1.0)
-        return struct.pack(EVFMT, self.tv_sec, self.tv_usec, self.evtype, self.code, self.value)
+        return struct.pack(EVFMT, self.tv_sec, self.tv_usec,
+                           self.evtype, self.code, self.value)
 
     def decode(self, bev):
 
-        self.tv_sec, self.tv_usec, self.evtype, self.code, self.value = struct.unpack(EVFMT, bev)
-        self.tt =  self.tv_usec/1000000.0 + self.tv_sec
+        self.tv_sec, self.tv_usec, self.evtype, self.code, self.value = \
+            struct.unpack(EVFMT, bev)
+        self.tt = self.tv_usec/1000000.0 + self.tv_sec
 
 
 class EventDevice(object):
@@ -359,10 +370,13 @@ class EventDevice(object):
         self.driver_version = struct.unpack(INT, ver)[0]
         # device ID info
         try:
-            devid = fcntl.ioctl(self._fd, EVIOCGID, '\x00\x00\x00\x00\x00\x00\x00\x00')
+            devid = fcntl.ioctl(self._fd, EVIOCGID,
+                                '\x00\x00\x00\x00\x00\x00\x00\x00')
         except (IOError):
-            devid = fcntl.ioctl(self._fd, 1074283778, '\x00\x00\x00\x00\x00\x00\x00\x00')
-        self.idbus, self.idvendor, self.idproduct, self.idversion = struct.unpack(SHORT4, devid)
+            devid = fcntl.ioctl(self._fd, 1074283778,
+                                '\x00\x00\x00\x00\x00\x00\x00\x00')
+        self.idbus, self.idvendor, self.idproduct, self.idversion = \
+            struct.unpack(SHORT4, devid)
         # capabilities
         try:
             caps = fcntl.ioctl(self._fd, EVIOCGBIT(0), '\x00\x00\x00\x00')
@@ -370,7 +384,7 @@ class EventDevice(object):
             caps = fcntl.ioctl(self._fd, 1090471200, '\x00\x00\x00\x00')
         self.caps = struct.unpack(INT, caps)[0]
 
-    def __del__ (self):
+    def __del__(self):
 
         if hasattr(self, '_fd') and self._fd is not None:
             os.close(self._fd)
@@ -382,8 +396,12 @@ class EventDevice(object):
             if self.has_feature(evtype):
                 caps_names.append(ev_name)
         caps_names_str = ", ".join(caps_names)
-        return "%s : name='%s', driver_version=0x%x, bus=0x%x, vendor=0x%04x, product=0x%04x, version=0x%x, caps-bits=0x%02x, caps-names='%s'" % \
-            (self.filename, self.name, self.driver_version, self.idbus, self.idvendor, self.idproduct, self.idversion, self.caps, caps_names_str)
+        return ("%s : name='%s', driver_version=0x%x, bus=0x%x, " +
+                "vendor=0x%04x, product=0x%04x, version=0x%x, " +
+                "caps-bits=0x%02x, caps-names='%s'" %
+                (self.filename, self.name, self.driver_version,
+                    self.idbus, self.idvendor, self.idproduct,
+                    self.idversion, self.caps, caps_names_str))
 
     def _fill(self):
 
@@ -414,7 +432,7 @@ class EventDevice(object):
         return self.caps >> evtype & 1
 
 
-def mouse_events (input_device):
+def mouse_events(input_device):
 
     ed = EventDevice(input_device)
     while ed:
@@ -423,7 +441,7 @@ def mouse_events (input_device):
             yield ev
 
 
-def mouse_motion (input_device):
+def mouse_motion(input_device):
 
     """This generates the relative motion of the given input device."""
 
@@ -433,14 +451,16 @@ def mouse_motion (input_device):
         if ev.evtype == EV_REL:
             yield ev.value
 
-def mouse_timing_delta (input_device):
+
+def mouse_timing_delta(input_device):
 
     """This generates the timing of each mouse event."""
 
     ed = mouse_events(input_device)
     t1 = ed.next().tt
     while ed:
-        tt =  ed.tv_usec/1000000.0 + ed.tv_sec
+        tt = ed.tv_usec/1000000.0 + ed.tv_sec
+
 
 def entropy_bit(input_device):
 
@@ -481,7 +501,7 @@ def entropy_bit_unbias_xor(input_device):
     while motion:
         bit1 = motion.next()
         bit2 = motion.next()
-        yield bit1^bit2
+        yield bit1 ^ bit2
 
 
 def entropy_bit_unbias_vonneumann2(input_device):
@@ -499,7 +519,7 @@ def entropy_bit_unbias_vonneumann2(input_device):
             yield bit1
 
 
-def entropy_bytes (input_device):
+def entropy_bytes(input_device):
 
     """This is a generator for an entropy source of 8-bit bytes with
     Von Neumann bias filtering. This calls entropy_bit_unbias_vonneumann
@@ -510,19 +530,20 @@ def entropy_bytes (input_device):
     while bit_source:
         byte = 0x00
         for nn in range(8):
-            byte = byte<<1
+            byte = byte << 1
             bit = bit_source.next()
-            byte = byte|bit
+            byte = byte | bit
         yield byte
 
-def byte_generator (bit_source):
+
+def byte_generator(bit_source):
 
     while bit_source:
         byte = 0x00
         for nn in range(8):
-            byte = byte<<1
+            byte = byte << 1
             bit = bit_source.next()
-            byte = byte|bit
+            byte = byte | bit
         yield byte
 
 
@@ -555,23 +576,26 @@ def detect_hotplug(dev_path='/dev/input', timeout=30, idle_time=0.250):
 
     before_timestamp = os.stat(dev_path).st_mtime
     timeout_mark = time.time() + timeout
-    before_list=os.listdir(dev_path)
+    before_list = os.listdir(dev_path)
     while True:
-        time.sleep (idle_time)
+        time.sleep(idle_time)
         after_timestamp = os.stat(dev_path).st_mtime
         if after_timestamp != before_timestamp:
             break
         if time.time() > timeout_mark:
             return None
-    after_list=os.listdir(dev_path)
-    new_files = [ii for ii in after_list if ii not in before_list and ii[0:5]=='event' ]
+    after_list = os.listdir(dev_path)
+    new_files = [ii for ii in after_list if ii not in before_list and ii[0:5]
+                 == 'event']
     return new_files
 
-def xor_strings (str_a, str_b):
-    return ''.join([chr(ord(aa) ^ ord(bb)) for aa,bb in zip(str_a,str_b)])
+
+def xor_strings(str_a, str_b):
+
+    return ''.join([chr(ord(aa) ^ ord(bb)) for aa, bb in zip(str_a, str_b)])
 
 
-def main (options, args):
+def main(options, args):
 
     try:
         if options.list:
@@ -605,25 +629,25 @@ def main (options, args):
         # more of one value of bit than another.
         entropy_source = entropy_bit(input_device)
         for bit in entropy_source:
-            sys.stdout.write('%d'%bit)
+            sys.stdout.write('%d' % bit)
             sys.stdout.flush()
 
     if options.rawvn:
         entropy_source = entropy_bit_unbias_vonneumann(input_device)
         for bit in entropy_source:
-            sys.stdout.write('%d'%bit)
+            sys.stdout.write('%d' % bit)
             sys.stdout.flush()
 
     if options.rawvn2:
         entropy_source = entropy_bit_unbias_vonneumann2(input_device)
         for bit in entropy_source:
-            sys.stdout.write('%d'%bit)
+            sys.stdout.write('%d' % bit)
             sys.stdout.flush()
 
     if options.rawxor:
         entropy_source = entropy_bit_unbias_xor(input_device)
         for bit in entropy_source:
-            sys.stdout.write('%d'%bit)
+            sys.stdout.write('%d' % bit)
             sys.stdout.flush()
 
     if options.events:
@@ -633,7 +657,7 @@ def main (options, args):
 
     if options.bytes:
         bw = bandwidth.bandwidth()
-	last_bandwidth_report = time.time()
+        last_bandwidth_report = time.time()
         entropy_source_bits = entropy_bit_unbias_vonneumann(input_device)
         entropy_source = byte_generator(entropy_source_bits)
         for byte in entropy_source:
@@ -642,56 +666,63 @@ def main (options, args):
             bw.update(1)
             if time.time() - last_bandwidth_report > 10:
                 last_bandwidth_report = time.time()
-                sys.stderr.write('1 minute bandwidth: %f bytes per second\n' % bw.bandwidth_covering(60.0))
+                sys.stderr.write('1 minute bandwidth: %f bytes per second\n'
+                                 % bw.bandwidth_covering(60.0))
                 sys.stderr.flush()
 
 if __name__ == "__main__":
     try:
         start_time = time.time()
         parser = optparse.OptionParser(
-                formatter=optparse.TitledHelpFormatter(),
-                usage=globals()['__doc__'],
-                version='1')
+            formatter=optparse.TitledHelpFormatter(),
+            usage=globals()['__doc__'],
+            version='1'
+        )
         parser.add_option('-v', '--verbose', action='store_true',
-                default=False, help='verbose output')
+                          default=False, help='verbose output')
         parser.add_option('--bytes', action='store_true',
-                default=True, help='dump binary stream (default)')
+                          default=True, help='dump binary stream (default)')
         parser.add_option('--hex', action='store_true',
-                default=False, help='dump ASCII hex stream')
+                          default=False, help='dump ASCII hex stream')
         parser.add_option('--raw', action='store_true',
-                default=False, help='dump raw bits with bias')
+                          default=False, help='dump raw bits with bias')
         parser.add_option('--rawvn', action='store_true',
-                default=False, help='dump raw bits with von Neumann debiasing')
+                          default=False, help='dump raw bits with' +
+                          ' von Neumann debiasing')
         parser.add_option('--rawvn2', action='store_true',
-                default=False, help='dump raw bits with 2-pass von Neumann debiasing')
+                          default=False, help='dump raw bits with' +
+                          ' 2-pass von Neumann debiasing')
         parser.add_option('--rawxor', action='store_true',
-                default=False, help='dump raw bits with xor debiasing')
+                          default=False, help='dump raw bits with' +
+                          ' xor debiasing')
         parser.add_option('--events', action='store_true',
-                default=False, help='dump raw mouse events')
+                          default=False, help='dump raw mouse events')
         parser.add_option('--list', action='store_true',
-                default=False, help='list input devices')
+                          default=False, help='list input devices')
         parser.add_option('--detect', action='store_true',
-                default=False, help='detect when input device is newly plugged.')
+                          default=False, help='detect when input device' +
+                          ' is newly plugged.')
         (options, args) = parser.parse_args()
         if not options.list and not options.detect and len(args) < 1:
             msg = """Missing input device argument. The mouse device is
 usually something like '/dev/input/event3' or '/dev/input/event4'."""
             parser.error(msg)
-        if options.verbose: print(time.asctime())
+        if options.verbose:
+            print(time.asctime())
         exit_code = main(options, args)
         if exit_code is None:
             exit_code = 0
         if options.verbose:
             print (time.asctime())
-            print ('TOTAL TIME IN MINUTES: %f'%((time.time()-start_time)/60.0))
+            print ('TOTAL TIME IN MINUTES: %f' %
+                   ((time.time()-start_time)/60.0))
         sys.exit(exit_code)
-    except KeyboardInterrupt as e: # The user pressed Ctrl-C.
+    except KeyboardInterrupt as e:  # The user pressed Ctrl-C.
         sys.exit(0)
-    except SystemExit as e: # The script called sys.exit() somewhere.
+    except SystemExit as e:  # The script called sys.exit() somewhere.
         raise e
     except Exception as e:
         print ('ERROR: Unexpected Exception')
         print (str(e))
         traceback.print_exc()
         os._exit(2)
-
