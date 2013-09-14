@@ -11,7 +11,7 @@ LICENSE
     This license is approved by the OSI and FSF as GPL-compatible.
         http://opensource.org/licenses/isc-license.txt
 
-    Copyright (c) 2012, Noah Spurrier
+    Copyright (c) 2013, Noah Spurrier
     PERMISSION TO USE, COPY, MODIFY, AND/OR DISTRIBUTE THIS SOFTWARE FOR ANY
     PURPOSE WITH OR WITHOUT FEE IS HEREBY GRANTED, PROVIDED THAT THE ABOVE
     COPYRIGHT NOTICE AND THIS PERMISSION NOTICE APPEAR IN ALL COPIES.
@@ -62,7 +62,7 @@ class bandwidth:
         else:
             self.byte_count_history.append([now_time, byte_count])
         # Drop byte_counts that are older than byte_count_history_max_secs.
-        # FIXME: Yes, I know lists are inefficient dequeues.
+        # FIXME: Yes, I know lists are inefficient as dequeues.
         while (len(self.byte_count_history) > 0 and
                 (now_time - self.byte_count_history[0][0]) >
                 self.byte_count_history_max_secs):

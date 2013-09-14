@@ -1,4 +1,12 @@
-/* Build with
+/* This is a simple tool to show the unsigned int definitions of the
+ * Linux input event constants used by the entropy-source python script.
+ * Use this only if you need to correct the constants in entropy-source.
+ * Some of the Linux input event constants are not generated in a portable
+ * way under Python. To work around this, you can compile the following
+ * tiny C program which will print out the value of the command constants.
+ * This should get around any issues with word size and endianess.
+ *
+ * Build with
  *     make ev-print
  * or
  *     gcc ev-print.c -o ev-print
