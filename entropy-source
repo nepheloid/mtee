@@ -8,35 +8,55 @@ SYNOPSIS
 
 DESCRIPTION
 
-    This must be run as root.
+    This application produces entropy from the coordinates
+    of mouse events. This should be a good source of truly
+    random numbers. The raw entropy from the mouse may be
+    filtered in various ways to eliminate bias. By default
+    Von Neumann's debiasing method is used. This script is
+    intended for education and experimentation. It is not
+    intended to be a fast source of entropy. In fact, it is
+    rather slow.
 
-    The INPUT_DEVICE must be a file in the directory '/etc/input/', such as
-    '/etc/input/event4'. Do not use the '/etc/input/mouse*' devices.
+    This script must be run as root.
 
-    Use the '--list' and '--detect'' options to help figure out
-    which input device to use.
+    The INPUT_DEVICE must be a file in the directory
+    '/etc/input/', such as '/etc/input/event4'.
+    Do not use the '/etc/input/mouse*' devices.
 
-    You may wish to disable the entropy mouse under X11 to prevent the mouse
-    cursor from wiggling around the screen randomly. This will not disable it
-    under /dev/input, so it will still be a source of entropy. First identify
-    which mouse you wish to disable.
+    Use the '--list' and '--detect'' options to help
+    figure out which input device to use.
+
+    == Disable the entropy mouse under X11 ==
+
+    You may wish to disable the mouse being used for entropy
+    under X11 to prevent the mouse pointer from wiggling
+    around the screen. Disabling the mouse under X11 will
+    not disable it under /dev/input, so it will still be a
+    source of entropy.
+
+    First identify which mouse you wish to disable.
         xinput --list
     Next find the ID of the 'Device Enabled' property of the mouse.
         xinput --list-props 16
     Finally, set the 'Device Enabled' property to zero.
         xinput --set-prop 16 145 0
 
-    FIXME: Some of the Linux input event constants are not generated
-    in a portable way under Python. To work around this, you can
-    compile the following tiny C program which will print out the
-    value of the command constants. This should get around any issues
-    with word size and endianess. Save this snippet as "ev-print.c":
+    == Bugs ==
+
+    Some of the constants used when working with Linux input
+    event are not generated in a portable way under Python.
+    This seems to mostly be a problem on big-endian
+    platforms like the PowerPC. To work around this, you can
+    hard-code the constants used in this script. To find the
+    constant values compile and run the following C program
+    which will print out the value of the constants.
+    Save this snippet as "ev-print.c":
 
     /* Build with
      *     make ev-print
      * or
      *     gcc ev-print.c -o ev-print
-     * */
+     */
     #include <stdio.h>
     #include <linux/input.h>
     int main (int argc, char *argv[]) {
@@ -46,24 +66,30 @@ DESCRIPTION
         printf("EVIOCGVERSION: %u\n", EVIOCGVERSION);
     }
 
-
 EXAMPLES
 
-    Most of the operations require root permissions. In these examples
-    the 'sudo' command is used when necessary.
+    Most of the operations require root permissions. In
+    these examples the 'sudo' command is used when
+    necessary.
 
-    You can use the '--detect' option to display the name of the
-    next input device you plug into the system. Start the command
-    before you plug in the device. As soon as you plug in the device
-    its name will be printed. Some mice may create more than one device.
-    You will have to try each name to see which one works.
+    First you need to know the name of the input device you
+    want to use as a source of entropy. To find the name you
+    use the '--detect' option to display the name of the
+    next input device that is plugged into the system. Start
+    this command before you plug in the mouse, then as soon
+    as you plug it in its name will be printed. Note that
+    some mice create more than one name, so you will have to
+    try each name to see which one works.
+
         $ ./entropy-source --detect
         /dev/input/event4
 
-    The basic operation is to output 8-bit bytes of entropy from
-    the given input device. In this example the bytes are piped
-    into 'od' to display them in hex. Sudo is used to run the
-    command with root permissions.
+    The default operation with no options is to output 8-bit
+    bytes of entropy from the given input device. In this
+    example the bytes are piped into 'od' to display them in
+    hex. Sudo is used to run the command with root
+    permissions.
+
         $ sudo ./entropy-source /dev/input/event4 | od -x
         0000000 0bbd b360 4887 5b06 213e 53e3 becc bd08
         0000020 4552 056f 6698 be45 2e67 f78a 43b1 44ee
@@ -71,9 +97,15 @@ EXAMPLES
     The following example will show the raw bits, with bias,
     as they are pulled from the input device. This is useful
     to see how fast the device is generating bits.
+
     $ sudo ./entropy-source --raw /dev/input/event4
     011000001110010000010001011001100110111011010111101111111
     100000100110011001000101110001000100100101101011011000110
+
+    In this example the entropy-source script is run in
+    the background and its output is sent to a file. Then
+    the GNU Plotutils command, graph, is used to visualize
+    the random data.
 
     $ sudo ./entropy-source /dev/input/event4 >> entropy-source.bin &
     [1] 4711
