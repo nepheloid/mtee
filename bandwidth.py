@@ -15,6 +15,15 @@ DESCRIPTION
     bandwidth calculation to cover. It will return the bytes per
     second over that time period.
 
+    To reduce the size of the history log size the byte counts
+    and times are aggregated into 10 second bins. This effects
+    the granularity of the bandwidth calculations. If bandwidth
+    in your application changes significantly on a smaller time
+    scale than 10 seconds, then you may want to adjust the object
+    property, bin_length_secs. The byte_count_history_max_secs
+    object property also may be adjusted to set the limits of the
+    history log.
+
 AUTHOR
 
     Noah Spurrier <noah@noah.org>
