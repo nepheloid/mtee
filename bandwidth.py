@@ -2,6 +2,19 @@
 # vim:set ft=python fileencoding=utf-8 sr et ts=4 sw=4 : See help 'modeline'
 """Bandwidth calculator.
 
+DESCRIPTION
+
+    This module is used to keep track of the amount of data
+    passing through a system. After you create the bandwidth
+    object you call update() on the object with the number of
+    bytes being handled at any point in time. Presumably this
+    would be inside a loop processing bytes. The object will
+    keep a history of the time and number of bytes processed.
+    When you want to know the instantaneous bandwidth you call
+    bandwidth_covering() with the range of seconds you want the
+    bandwidth calculation to cover. It will return the bytes per
+    second over that time period.
+
 AUTHOR
 
     Noah Spurrier <noah@noah.org>

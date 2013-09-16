@@ -7,14 +7,14 @@ sources of entropy. To keep things simple only the coordinates are used.
 The primary goal on this program is to be easy to use and understand for
 experimentation.
 
-The primary script in this directory is "entropy-source". The other program
-files are not essential. The "ev-print.c" program is only needed if you have a
-buggy version of Python on a some big-endian processors (PowerPC). It is used
-to help correct some constant definitions in "entropy-source". There are also
-files under the "extra" directory. These are utilities for converting raw
-binary data into images. Sometimes it is useful to look at raw binaries as
-images as a way to spot non-random patterns in data. Some of the more
-interesting file are:
+The primary script in this directory is "entropy-source". The "bandwidth.py"
+module is used by "entropy-source" to calculate the bits per second of entropy
+being generated. The "ev-print.c" program is only needed if you have a buggy
+version of Python on a some big-endian processors (PowerPC). It is used to help
+correct some constant definitions in "entropy-source". There are also files
+under the "extra" directory. These are utilities for converting raw binary data
+into images. Sometimes it is useful to look at raw binaries as images as a way
+to spot non-random patterns in data. Some of the more interesting file are:
 
     wl_to_rgb.py ppm_dump.py png_canvas.py canvas.py time_delta.py
 
