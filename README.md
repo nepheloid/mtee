@@ -1,27 +1,25 @@
 MTEE -- Mouse Trap Entropy Engine
 =================================
 
-This application produces entropy from a mouse. A mouse event generates several
+This program produces entropy from a mouse. A mouse event generates several
 sources of entropy. The timing and the mouse coordinates could both be used as
-sources of entropy. At the moment I only use the coordinates. This could easily
-be extended to absolute time, delta time, X, and Y coordinates for much more
-entropy. My goal here was to create something that is easy to understand, so I
-don't use all sources of entropy available from the mouse. My goal was to make
-a fairly complete script that is also easy to understand and follow.
+sources of entropy. To keep things simple only the coordinates are used.
+The primary goal on this program is to be easy to use and understand for
+experimentation.
 
-The key script in this directory is "entropy-source". That should be all you
-need to use to generate entropy. If you have a buggy version of Python on a
-weird big-endian process then you may need to use the "ev-print.c" program to
-correct some constant definitions. There are also files under the "extra"
-directory. Most of these have nothing to do with randomness or entropy. They
-are small utilities for converting raw binary data to images. Sometimes it is
-useful to look at raw binaries as images as a way to spot non-random patterns
-in data. Some of the other more interesting file are:
+The primary script in this directory is "entropy-source". The other program
+files are not essential. The "ev-print.c" program is only needed if you have a
+buggy version of Python on a some big-endian processors (PowerPC). It is used
+to help correct some constant definitions in "entropy-source". There are also
+files under the "extra" directory. These are utilities for converting raw
+binary data into images. Sometimes it is useful to look at raw binaries as
+images as a way to spot non-random patterns in data. Some of the more
+interesting file are:
 
     wl_to_rgb.py ppm_dump.py png_canvas.py canvas.py time_delta.py
 
 If you wish to test the randomness of your entropy then you may want to install
-the following tools:
+the following tools (these are Debian package names):
 
     apt-get install rng-tools ent dieharder
 
