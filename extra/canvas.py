@@ -146,9 +146,9 @@ class png_canvas(canvas):
         for scanline in self.blocks(canvas, 3 * self.width):
             scanlines += chr(0) + scanline
         return (self.signature
-            + self.header()
-            + self.chunk('IDAT', self.deflate(scanlines))
-            + self.chunk('IEND', ''))
+                + self.header()
+                + self.chunk('IDAT', self.deflate(scanlines))
+                + self.chunk('IEND', ''))
 
     def bigendian32(self, int32):
 
@@ -156,9 +156,9 @@ class png_canvas(canvas):
         bigendian int. '''
 
         return (chr((int32 >> 24) & 0xFF)
-            + chr((int32 >> 16) & 0xFF)
-            + chr((int32 >> 8) & 0xFF)
-            + chr(int32 & 0xFF))
+                + chr((int32 >> 16) & 0xFF)
+                + chr((int32 >> 8) & 0xFF)
+                + chr(int32 & 0xFF))
 
     def chunk(self, chunk_type, chunk_data):
 
@@ -170,13 +170,13 @@ class png_canvas(canvas):
     def header(self):
 
         return self.chunk('IHDR',
-                (self.bigendian32(self.width)
-                + self.bigendian32(self.height)
-                + chr(8)      # bit depth
-                + chr(2)      # color type
-                + chr(0)      # compression method
-                + chr(0)      # filter type
-                + chr(0)))    # interlace method
+                          (self.bigendian32(self.width)
+                           + self.bigendian32(self.height)
+                           + chr(8)      # bit depth
+                           + chr(2)      # color type
+                           + chr(0)      # compression method
+                           + chr(0)      # filter type
+                           + chr(0)))    # interlace method
 
     def blocks(self, biglist, block_size):
 
@@ -192,11 +192,11 @@ class png_canvas(canvas):
             if block_length < self.DEFLATE_WINDOW_SIZE:
                 last_block = True
             zblocks += (chr(last_block)
-                    + chr(block_length & 0xFF)
-                    + chr((block_length >> 8) & 0xFF)
-                    + chr((0xFF ^ block_length) & 0xFF)
-                    + chr((0xFF ^ (block_length >> 8)) & 0xFF)
-                    + block)
+                        + chr(block_length & 0xFF)
+                        + chr((block_length >> 8) & 0xFF)
+                        + chr((0xFF ^ block_length) & 0xFF)
+                        + chr((0xFF ^ (block_length >> 8)) & 0xFF)
+                        + block)
         zblocks += self.bigendian32(self.adler32(scanlines))
         return zblocks
 

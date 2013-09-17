@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 import time
 
-def time_delta_str (start, end):
+
+def time_delta_str(start, end):
     delta = end-start
     if delta < 0:
         delta = -1 * delta
@@ -15,4 +16,3 @@ def time_delta_str (start, end):
 start_time = time.time()
 end_time = start_time + 12345.6789
 print (time_delta_str(start_time, end_time))
-

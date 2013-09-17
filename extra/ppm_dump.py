@@ -1,10 +1,12 @@
 #!/usr/bin/env python
-# This sprays bytes from stdin onto a canvas and then 
+
+# This sprays bytes from stdin onto a canvas and then
 # outputs the result in PPM (portable pixmap file format).
 #
 # dd if=/dev/urandom bs=1000 count=100 | ./ppm-dump | display -
 #
 # See http://en.wikipedia.org/wiki/Netpbm_format
+
 """This lets you draw on an RGB canvas and then dump the canvas as a PPM image.
 The PNG is very crude and uncompressed. The code is intended to be small and
 simple. It is not fast or efficient.
@@ -40,6 +42,7 @@ VERSION
     Version 1
 """
 
+
 class ppm:
 
     '''This writes a 24-bit color PPM (PNM) formatted images (P3 or P6 format).
@@ -59,19 +62,19 @@ class ppm:
         self.imax = 255
         self.index = 0
 
-    def draw (self, x, y, r, g, b):
+    def draw(self, x, y, r, g, b):
 
-        index = (y*self.width+x)%self.index_max
-        self.plane_r[index] = r%256
-        self.plane_g[index] = g%256
-        self.plane_b[index] = b%256
+        index = (y * self.width + x) % self.index_max
+        self.plane_r[index] = r % 256
+        self.plane_g[index] = g % 256
+        self.plane_b[index] = b % 256
 
-    def spray (self, r, g, b):
+    def spray(self, r, g, b):
 
-        self.plane_r[self.index] = r%256
-        self.plane_g[self.index] = g%256
-        self.plane_b[self.index] = b%256
-        self.index = (self.index+1)%self.index_max
+        self.plane_r[self.index] = r % 256
+        self.plane_g[self.index] = g % 256
+        self.plane_b[self.index] = b % 256
+        self.index = (self.index + 1) % self.index_max
 
     def __str__(self):
 
@@ -94,8 +97,8 @@ class ppm:
             g = self.plane_g[index]
             b = self.plane_b[index]
             if self.is_ascii:
-                ppm_str = ppm_str + ('%3d %3d %3d ' % (r,g,b))
-                if not ((1+index) % 6):
+                ppm_str = ppm_str + ('%3d %3d %3d ' % (r, g, b))
+                if not ((1 + index) % 6):
                     ppm_str = ppm_str + '\n'
             else:
                 ppm_str = ppm_str + chr(r) + chr(g) + chr(b)
@@ -105,10 +108,10 @@ class ppm:
 if __name__ == '__main__':
 
     import sys
-    p = ppm(400,400)
+    p = ppm(400, 400)
     #p.is_ascii = True
-    #p = ppm(320,240)
-    #p = ppm(640,480)
+    #p = ppm(320, 240)
+    #p = ppm(640, 480)
 
 ####    # Initialize canvas with xor pattern.
 ####    xcenter = p.width / 2
@@ -124,12 +127,12 @@ if __name__ == '__main__':
 #            p.spray(pal_r[val],pal_g[val],pal_b[val])
 
     # Spray bytes from stdin onto canvas.
-    for ii in range (1, p.index_max):
+    for ii in range(1, p.index_max):
         try:
             r = ord(sys.stdin.read(1))
             g = ord(sys.stdin.read(1))
             b = ord(sys.stdin.read(1))
-            p.spray(r,g,b)
+            p.spray(r, g, b)
         except TypeError, e:
             # read(1) returned empty string.
             break

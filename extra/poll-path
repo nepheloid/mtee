@@ -5,7 +5,9 @@ import sys
 import os
 import time
 
-def poll_path (target_path='.', timeout=10, idle_time=0.250, settle_time=0.100):
+
+def poll_path(target_path='.', timeout=10, idle_time=0.250,
+              settle_time=0.100):
 
     timeout_mark = time.time() + timeout
     before_timestamp = os.stat(target_path).st_mtime
@@ -48,7 +50,7 @@ if __name__ == '__main__':
 ####            exit_code = 0
 ####        if options.verbose:
 ####            print (time.asctime())
-####            print ('TOTAL TIME IN MINUTES: %f'%((time.time()-start_time)/60.0))
+####            print ('TIME IN MINUTES: %f'%((time.time()-start_time)/60.0))
 ####        sys.exit(exit_code)
 ####    except KeyboardInterrupt as e: # The user pressed Ctrl-C.
 ####        raise e
@@ -59,4 +61,3 @@ if __name__ == '__main__':
 ####        print (str(e))
 ####        traceback.print_exc()
 ####        os._exit(2)
-

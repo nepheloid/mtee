@@ -61,7 +61,7 @@ import optparse
 import time
 
 
-def main (options, args):
+def main(options, args):
 
     # Figure out where to get input (file or stdin).
     # Use stdin if no filename is given or if filename is '-'.
@@ -75,20 +75,22 @@ def main (options, args):
         fin = sys.stdin
 
     if fin == sys.stdin:
-        print ('# filename: None <stdin>')
+        print('# filename: None <stdin>')
     else:
-        print ('# filename: %s' % filename)
+        print('# filename: %s' % filename)
 
     histogram = [0]*256
-    for bb in fin.read(): #file(args[0]).read():
+    for bb in fin.read():  # file(args[0]).read():
         histogram[ord(bb)] += 1
     index_of_max_count = histogram.index(max(histogram))
     index_of_min_count = histogram.index(min(histogram))
 
-    print ('# max count index %03d: %d' % (index_of_max_count, histogram[index_of_max_count]))
-    print ('# min count index %03d: %d' % (index_of_min_count, histogram[index_of_min_count]))
-    print ('#')
-    print ('# index count')
+    print('# max count index %03d: %d'
+          % (index_of_max_count, histogram[index_of_max_count]))
+    print('# min count index %03d: %d'
+          % (index_of_min_count, histogram[index_of_min_count]))
+    print('#')
+    print('# index count')
     for ii in range(256):
         print '%3d %4d' % (ii, histogram[ii])
 #    hd = dict(zip(range(0,256),histogram))
@@ -100,29 +102,30 @@ if __name__ == '__main__':
     try:
         start_time = time.time()
         parser = optparse.OptionParser(
-                formatter=optparse.TitledHelpFormatter(),
-                usage=globals()['__doc__'],
-                version='1')
-        parser.add_option ('-v', '--verbose', action='store_true',
-                default=False, help='verbose output')
+            formatter=optparse.TitledHelpFormatter(),
+            usage=globals()['__doc__'],
+            version='1')
+        parser.add_option('-v', '--verbose', action='store_true',
+                          default=False, help='verbose output')
         (options, args) = parser.parse_args()
         #if len(args) < 1:
         #    parser.error ('missing argument')
-        if options.verbose: print (time.asctime())
+        if options.verbose:
+            print(time.asctime())
         exit_code = main(options, args)
         if exit_code is None:
             exit_code = 0
         if options.verbose:
-            print (time.asctime())
-            print ('TOTAL TIME IN MINUTES: %f'%((time.time()-start_time)/60.0))
+            print(time.asctime())
+            print('TOTAL TIME IN MINUTES: %f'
+                  % ((time.time() - start_time) / 60.0))
         sys.exit(exit_code)
-    except KeyboardInterrupt, e: # The user pressed Ctrl-C.
+    except KeyboardInterrupt, e:  # The user pressed Ctrl-C.
         raise e
-    except SystemExit, e: # The script called sys.exit() somewhere.
+    except SystemExit, e:  # The script called sys.exit() somewhere.
         raise e
     except Exception, e:
-        print ('ERROR: Unexpected Exception')
-        print (str(e))
+        print('ERROR: Unexpected Exception')
+        print(str(e))
         traceback.print_exc()
         os._exit(2)
-

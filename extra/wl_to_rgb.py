@@ -37,6 +37,7 @@ import optparse
 import time
 import logging
 
+
 def wavelength_to_rgb(wavelength, gamma=0.8):
 
     '''This converts a given wavelength into an approximate RGB value.
@@ -83,19 +84,20 @@ def wavelength_to_rgb(wavelength, gamma=0.8):
     B *= 255
     return (int(R), int(G), int(B))
 
-def main (options=None, args=None):
+
+def main(options=None, args=None):
 
 #    import ppm_dump
 #    import png_canvas
     import canvas
     if options.ppm:
-        canvas = canvas.ppm_canvas(371,278)
+        canvas = canvas.ppm_canvas(371, 278)
         canvas.is_ascii = True
     else:
-        canvas = canvas.png_canvas(371,278)
-    for wl in range (380,751):
-        r,g,b = wavelength_to_rgb(wl)
-        for yy in range (0,278):
+        canvas = canvas.png_canvas(371, 278)
+    for wl in range(380, 751):
+        r, g, b = wavelength_to_rgb(wl)
+        for yy in range(0, 278):
             canvas.pixel(wl - 380, yy, r, g, b)
     sys.stdout.write(str(canvas))
 
@@ -103,33 +105,41 @@ if __name__ == '__main__':
     try:
         start_time = time.time()
         parser = optparse.OptionParser(
-                formatter=optparse.TitledHelpFormatter(),
-                usage=globals()['__doc__'],
-                version='1')
-        parser.add_option('-v', '--verbose', action='store_true',
-                default=False, help='verbose output')
-        parser.add_option('--png', action='store_true',
-                default=True, help='Output as PNG.')
-        parser.add_option('--ppm', action='store_true',
-                default=False, help='Output as PPM ASCII (Portable Pixmap).')
+            formatter=optparse.TitledHelpFormatter(),
+            usage=globals()['__doc__'],
+            version='1'
+        )
+        parser.add_option(
+            '-v', '--verbose', action='store_true',
+            default=False, help='verbose output'
+        )
+        parser.add_option(
+            '--png', action='store_true',
+            default=True, help='Output as PNG.'
+        )
+        parser.add_option(
+            '--ppm', action='store_true',
+            default=False, help='Output as PPM ASCII (Portable Pixmap).'
+        )
         (options, args) = parser.parse_args()
         #if len(args) < 1:
         #    parser.error ('missing argument')
-        if options.verbose: print(time.asctime())
+        if options.verbose:
+            print(time.asctime())
         exit_code = main(options, args)
         if exit_code is None:
             exit_code = 0
         if options.verbose:
-            print (time.asctime())
-            print ('TOTAL TIME IN MINUTES: %f'%((time.time()-start_time)/60.0))
+            print(time.asctime())
+            print('TOTAL TIME IN MINUTES: %f'
+                  % ((time.time() - start_time) / 60.0))
         sys.exit(exit_code)
-    except KeyboardInterrupt as e: # The user pressed Ctrl-C.
+    except KeyboardInterrupt as e:  # The user pressed Ctrl-C.
         raise e
-    except SystemExit as e: # The script called sys.exit() somewhere.
+    except SystemExit as e:  # The script called sys.exit() somewhere.
         raise e
     except Exception as e:
-        print ('ERROR: Unexpected Exception')
-        print (str(e))
+        print('ERROR: Unexpected Exception')
+        print(str(e))
         traceback.print_exc()
         os._exit(2)
-
