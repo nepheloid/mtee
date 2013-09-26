@@ -154,7 +154,11 @@ import fcntl
 import time
 import traceback
 import optparse
-import bandwidth
+try:
+    import bandwidth
+    HAS_BANDWIDTH_MODULE = True
+except ImportError:
+    HAS_BANDWIDTH_MODULE = False
 
 # ioctl constants from from pycopia.OS.Linux.IOCTL by
 # Keith Dart <keith@kdart.com> and from
@@ -510,8 +514,13 @@ def entropy_bit_unbias_vonneumann(input_device):
 
     """This takes the raw bits from entropy_bit() and
     removes simple bias using Von Neumann's method.
-    This is the preferred alternative to using
-    entropy_bit_unbias_xor(). """
+    This generally gives better results than entropy_bit_unbias_xor().
+    This is a generator, so use it in a loop like this:
+        bit_source = entropy_bit_unbias_vonneumann(input_device)
+        while bit_source:
+            bit = bit_source.next()
+            print(bit)
+    """
 
     bits = entropy_bit(input_device)
     while bits:
@@ -688,19 +697,21 @@ def main(options, args):
             print str(ev)
 
     if options.bytes:
-        bw = bandwidth.bandwidth()
-        last_bandwidth_report = time.time()
+        if HAS_BANDWIDTH_MODULE:
+            bw = bandwidth.bandwidth()
+            last_bandwidth_report = time.time()
         entropy_source_bits = entropy_bit_unbias_vonneumann(input_device)
         entropy_source = byte_generator(entropy_source_bits)
         for byte in entropy_source:
             sys.stdout.write(chr(byte))
             sys.stdout.flush()
-            bw.update(1)
-            if time.time() - last_bandwidth_report > 10:
-                last_bandwidth_report = time.time()
-                sys.stderr.write('1 minute bandwidth: %f bytes per second\n'
-                                 % bw.bandwidth_covering(60.0))
-                sys.stderr.flush()
+            if HAS_BANDWIDTH_MODULE:
+                bw.update(1)
+                if time.time() - last_bandwidth_report > 10:
+                    last_bandwidth_report = time.time()
+                    sys.stderr.write('bandwidth 1 min: %f bytes per second\n'
+                                    % bw.bandwidth_covering(60.0))
+                    sys.stderr.flush()
 
 if __name__ == "__main__":
     try:
