@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# vim:set ft=python fileencoding=utf-8 sr et ts=4 sw=4 : See help 'modeline'
 
 """
 SYNOPSIS
@@ -9,6 +8,8 @@ SYNOPSIS
 DESCRIPTION
 
     This generates a histogram of the bytes in a file.
+    If no FILENAME is given or if the FILENAME is '-' then
+    this will read from the standard input.
 
     This docstring will be printed by the script if there is an error or
     if the user requests help (-h or --help).
@@ -17,6 +18,8 @@ EXAMPLES
 
     $ dd if=/dev/urandom of=random.bin bs=1 count=10000
     $ histogram random.bin
+
+    $ dd if=/dev/urandom bs=1 count=10000 | histogram
 
 EXIT STATUS
 
@@ -35,7 +38,7 @@ LICENSE
     approved by the Open Source Initiative. For more information vist:
         http://opensource.org/licenses/isc-license.txt
 
-    Copyright (c) 2012, Noah Spurrier
+    Copyright (c) 2013, Noah Spurrier
 
     Permission to use, copy, modify, and/or distribute this software for any
     purpose with or without fee is hereby granted, provided that the above
@@ -129,3 +132,5 @@ if __name__ == '__main__':
         print(str(e))
         traceback.print_exc()
         os._exit(2)
+
+# vim:set ft=python fileencoding=utf-8 sr et ts=4 sw=4 : See help 'modeline'
